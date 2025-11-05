@@ -16,9 +16,153 @@ const letterOverlay = document.querySelector('.letter-overlay');
 const letterBox = document.querySelector('.letter-box');
 const letterText = document.getElementById('letterText');
 
+const giftOverlay = document.querySelector('.gift-overlay');
+const giftImage = document.querySelector('.gift-image');
+
 let currentLine = 0;
 let finished = false;
 let notesInterval = null;
+let isMusicPlaying = false;
+let audioInitialized = false;
+
+// Fix: Comprehensive audio initialization
+function initAudio() {
+  if (audioInitialized) return;
+  
+  console.log('Initializing audio...');
+  
+  if (bgMusic) {
+    bgMusic.volume = 0.6;
+    bgMusic.preload = "auto";
+    bgMusic.load(); // Force preload
+    
+    // Add event listeners for debugging
+    bgMusic.addEventListener('canplaythrough', () => {
+      console.log('Background music can play through');
+    });
+    
+    bgMusic.addEventListener('error', (e) => {
+      console.error('Background music error:', e);
+      console.error('Audio error details:', bgMusic.error);
+    });
+    
+    bgMusic.addEventListener('loadstart', () => {
+      console.log('Background music loading started');
+    });
+  }
+
+  if (confettiSound) {
+    confettiSound.volume = 0.7;
+    confettiSound.preload = "auto";
+    confettiSound.load();
+  }
+  
+  audioInitialized = true;
+}
+
+// Fix: Audio context resume for modern browsers
+async function unlockAudio() {
+  try {
+    // Create and resume audio context if needed
+    if (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined') {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+      
+      // Create a silent source to unlock audio
+      const buffer = audioContext.createBuffer(1, 1, 22050);
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContext.destination);
+      source.start();
+    }
+    
+    return true;
+  } catch (error) {
+    console.log('Audio context unlock failed:', error);
+    return false;
+  }
+}
+
+// Fix: Improved audio playback with user gesture
+async function playAudio(audioElement, soundName = 'audio') {
+  if (!audioElement) {
+    console.log(`${soundName} element not found`);
+    return false;
+  }
+
+  try {
+    // Ensure audio is unlocked
+    await unlockAudio();
+    
+    // Reset and play
+    audioElement.currentTime = 0;
+    audioElement.volume = soundName === 'background' ? 0.6 : 0.7;
+    
+    const playPromise = audioElement.play();
+    
+    if (playPromise !== undefined) {
+      await playPromise;
+      console.log(`${soundName} started successfully`);
+      return true;
+    }
+  } catch (error) {
+    console.log(`${soundName} play failed:`, error);
+    
+    // Fallback: Try with user gesture
+    if (error.name === 'NotAllowedError') {
+      console.log('Audio blocked by browser. Waiting for user interaction...');
+      // We'll rely on the music box click for background music
+    }
+  }
+  
+  return false;
+}
+
+// Fix: Improved gift box functionality
+giftBox.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  
+  const isOpening = !giftBox.classList.contains('open');
+  giftBox.classList.toggle('open');
+  
+  if (isOpening) {
+    giftOverlay.classList.add('show');
+    giftImage.style.display = 'block';
+    
+    // Play confetti sound when opening gift
+    await playAudio(confettiSound, 'confetti');
+  } else {
+    giftOverlay.classList.remove('show');
+    giftImage.style.display = 'none';
+  }
+});
+
+// Fix: Close gift when clicking background
+giftOverlay.addEventListener('click', (e) => {
+  if (e.target === giftOverlay) {
+    giftOverlay.classList.remove('show');
+    giftBox.classList.remove('open');
+    giftImage.style.display = 'none';
+  }
+});
+
+// Fix: Close gift with Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (giftOverlay.classList.contains('show')) {
+      giftOverlay.classList.remove('show');
+      giftBox.classList.remove('open');
+      giftImage.style.display = 'none';
+    }
+    if (letterOverlay.classList.contains('show')) {
+      hideLetterOverlay();
+    }
+  }
+});
 
 function showLine(line, callback) {
   textElement.innerHTML = "";
@@ -60,7 +204,7 @@ function nextLine() {
   });
 }
 
-// ---------- notes spawning ----------
+// Fix: Music notes spawning
 function spawnNote() {
   const note = document.createElement("span");
   note.textContent = "♫";
@@ -71,13 +215,12 @@ function spawnNote() {
   setTimeout(() => note.remove(), 2200);
 }
 
-cake.addEventListener("click", () => {
+// Fix: Improved cake click with better audio handling
+cake.addEventListener("click", async () => {
   if (!finished || !cake.classList.contains("clickable")) return;
 
-  if (confettiSound && typeof confettiSound.play === 'function') {
-    confettiSound.currentTime = 0;
-    confettiSound.play().catch(()=>{});
-  }
+  // Play confetti sound
+  await playAudio(confettiSound, 'confetti');
 
   const duration = 4000;
   const end = Date.now() + duration;
@@ -105,12 +248,8 @@ cake.addEventListener("click", () => {
     musicBox.classList.add("show");
     cameraContainer.classList.add("show");
 
-    if (bgMusic && typeof bgMusic.play === 'function') {
-      bgMusic.play().catch(()=>{}); 
-      musicBox.classList.remove('off');
-    }
-
-    if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
+    // Don't auto-start background music - wait for user click
+    musicBox.classList.add('off'); // Start with music off
     document.querySelector(".scene").classList.add("zoom-in");
   }, duration + 3000);
 });
@@ -127,43 +266,46 @@ cards.querySelectorAll(".card").forEach(card => {
   });
 });
 
-document.addEventListener('click', (e) => {
-  if (!letterOverlay.classList.contains('show')) return;
-  if (e.target.closest('.letter-box')) return;
-  hideLetterOverlay();
-});
-
-letterOverlay.addEventListener('click', (e) => {
-  if (!e.target.closest('.letter-box')) {
-    hideLetterOverlay();
-    return;
-  }
-  e.stopPropagation();
-});
-
 function hideLetterOverlay() {
   letterOverlay.classList.remove('show');
   setTimeout(() => { letterText.textContent = ""; }, 300);
 }
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && letterOverlay.classList.contains('show')) {
+letterOverlay.addEventListener('click', (e) => {
+  if (!e.target.closest('.letter-box')) {
     hideLetterOverlay();
   }
 });
 
-// ---------- MUSIC BOX ----------
-musicBox.addEventListener('click', (ev) => {
+// Fix: Music box click - main audio starter
+musicBox.addEventListener('click', async (ev) => {
   ev.stopPropagation();
-  if (!bgMusic) return;
+  
+  if (!bgMusic) {
+    console.log('Background music element not found');
+    return;
+  }
 
   if (bgMusic.paused) {
-    bgMusic.play().catch(()=>{});
-    musicBox.classList.remove('off');
-    if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
+    // Try to play music
+    const success = await playAudio(bgMusic, 'background');
+    
+    if (success) {
+      musicBox.classList.remove('off');
+      isMusicPlaying = true;
+      if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
+    } else {
+      // Show visual feedback that audio is blocked
+      musicBox.style.background = 'linear-gradient(145deg, #ff6b6b, #c44569)';
+      setTimeout(() => {
+        musicBox.style.background = 'linear-gradient(145deg, #e2c657, #d71616)';
+      }, 1000);
+    }
   } else {
+    // Pause music
     bgMusic.pause();
     musicBox.classList.add('off');
+    isMusicPlaying = false;
     clearInterval(notesInterval);
     notesInterval = null;
   }
@@ -202,7 +344,7 @@ document.querySelector('.camera').addEventListener('click', async () => {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: true });
     cameraFeed.srcObject = stream;
-    cameraFeed.style.transform = "scaleX(-1)"; // mirror camera
+    cameraFeed.style.transform = "scaleX(-1)";
     await cameraFeed.play();
   } catch (err) {
     console.error("Camera access error:", err);
@@ -218,7 +360,6 @@ captureBtn.addEventListener('click', () => {
   photoCanvas.width = cameraFeed.videoWidth;
   photoCanvas.height = cameraFeed.videoHeight;
 
-  // flip horizontally before drawing
   ctx.translate(photoCanvas.width, 0);
   ctx.scale(-1, 1);
   ctx.drawImage(cameraFeed, 0, 0, photoCanvas.width, photoCanvas.height);
@@ -227,8 +368,7 @@ captureBtn.addEventListener('click', () => {
   const photoSrc = photoCanvas.toDataURL('image/png');
   capturedPhotos.push(photoSrc);
 
-  // ✅ Only show 1 thumbnail (latest)
-  thumbnailBar.innerHTML = ''; // clear old one
+  thumbnailBar.innerHTML = '';
   const latestThumb = document.createElement('img');
   latestThumb.src = photoSrc;
   thumbnailBar.appendChild(latestThumb);
@@ -236,15 +376,16 @@ captureBtn.addEventListener('click', () => {
   latestThumb.addEventListener('click', () => openGallery());
 });
 
-// ✅ Gallery View (click thumbnail to open)
 function openGallery() {
   const galleryOverlay = document.createElement('div');
   galleryOverlay.classList.add('gift-overlay', 'show');
-  galleryOverlay.style.backdropFilter = 'blur(8px)';
-  galleryOverlay.style.display = 'flex';
-  galleryOverlay.style.justifyContent = 'center';
-  galleryOverlay.style.alignItems = 'center';
-  galleryOverlay.style.zIndex = '2000';
+  galleryOverlay.style.cssText = `
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+  `;
 
   const gallery = document.createElement('div');
   gallery.style.cssText = `
@@ -302,5 +443,18 @@ cameraBg.addEventListener('click', () => {
   }
 });
 
+// Initialize audio when page loads and on user interaction
+document.addEventListener('DOMContentLoaded', () => {
+  initAudio();
+});
+
+// Initialize audio on any user interaction
+document.addEventListener('click', () => {
+  initAudio();
+}, { once: true });
+
+document.addEventListener('touchstart', () => {
+  initAudio();
+}, { once: true });
 
 nextLine();
