@@ -22,59 +22,73 @@ const giftImage = document.querySelector('.gift-image');
 let currentLine = 0;
 let finished = false;
 let notesInterval = null;
-let audioEnabled = false;
 
-// GITHUB PAGES AUDIO FIX
-function enableAudio() {
-  if (audioEnabled) return true;
-  
-  // This creates a user interaction context for audio
-  const silentAudio = new Audio();
-  silentAudio.src = 'data:audio/wav;base64,UklGRnoAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoAAAC';
-  silentAudio.play().then(() => {
-    audioEnabled = true;
-    console.log('Audio enabled');
-  }).catch(e => {
-    console.log('Audio context setup failed:', e);
-  });
-  
-  return audioEnabled;
-}
-
+// SIMPLE AUDIO FUNCTION
 function playSound(sound, volume = 0.7) {
   if (!sound) {
     console.log('Sound element not found');
     return false;
   }
   
-  // Enable audio on first user interaction
-  if (!audioEnabled) {
-    enableAudio();
-  }
-  
   try {
-    sound.volume = volume;
+    // Reset and set volume
     sound.currentTime = 0;
+    sound.volume = volume;
     
-    const playPromise = sound.play();
+    // Play with promise handling
+    const promise = sound.play();
     
-    if (playPromise !== undefined) {
-      playPromise.then(() => {
-        console.log('Sound playing successfully');
-      }).catch(error => {
-        console.log('Sound play failed:', error);
-        // If autoplay is blocked, show a message
-        if (error.name === 'NotAllowedError') {
-          console.log('Audio blocked by browser. User needs to interact first.');
-        }
+    if (promise !== undefined) {
+      promise.catch(error => {
+        console.log('Audio play was prevented:', error);
+        // Show user they need to interact
+        showAudioMessage();
       });
     }
     return true;
   } catch (error) {
-    console.log('Sound play error:', error);
+    console.log('Audio error:', error);
     return false;
   }
 }
+
+function showAudioMessage() {
+  // Create a temporary message
+  const message = document.createElement('div');
+  message.textContent = 'Click anywhere to enable audio';
+  message.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,0,0,0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    z-index: 10000;
+    font-family: Arial, sans-serif;
+  `;
+  document.body.appendChild(message);
+  
+  setTimeout(() => {
+    document.body.removeChild(message);
+  }, 3000);
+}
+
+// Enable audio on any click
+document.addEventListener('click', function enableAudio() {
+  // Remove this listener after first click
+  document.removeEventListener('click', enableAudio);
+  
+  // Try to play a silent sound to unlock audio
+  const silentAudio = new Audio();
+  silentAudio.src = 'data:audio/wav;base64,UklGRnoAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoAAAC';
+  silentAudio.play().then(() => {
+    console.log('Audio unlocked');
+  }).catch(e => {
+    console.log('Silent audio failed:', e);
+  });
+}, { once: true });
 
 // Gift box functionality
 giftBox.addEventListener('click', (e) => {
@@ -196,8 +210,7 @@ cake.addEventListener("click", () => {
     musicBox.classList.add("show");
     cameraContainer.classList.add("show");
 
-    // Don't auto-play background music on GitHub Pages
-    // User will need to click the music box
+    // Don't auto-play music on GitHub Pages
     musicBox.classList.add('off');
     
     if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
@@ -227,12 +240,9 @@ letterOverlay.addEventListener('click', (e) => {
   }
 });
 
-// Music box - user must click this to start music on GitHub Pages
+// Music box - user must click to start music
 musicBox.addEventListener('click', (ev) => {
   ev.stopPropagation();
-  
-  // Enable audio on first click
-  enableAudio();
   
   if (!bgMusic) return;
 
@@ -241,12 +251,6 @@ musicBox.addEventListener('click', (ev) => {
     if (success) {
       musicBox.classList.remove('off');
       if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
-    } else {
-      // Show visual feedback that audio needs interaction
-      musicBox.style.background = 'linear-gradient(145deg, #ff6b6b, #c44569)';
-      setTimeout(() => {
-        musicBox.style.background = 'linear-gradient(145deg, #e2c657, #d71616)';
-      }, 1000);
     }
   } else {
     bgMusic.pause();
@@ -384,10 +388,5 @@ cameraBg.addEventListener('click', () => {
     stream = null;
   }
 });
-
-// Enable audio on any user interaction with the page
-document.addEventListener('click', () => {
-  enableAudio();
-}, { once: true });
 
 nextLine();
