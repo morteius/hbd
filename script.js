@@ -16,154 +16,10 @@ const letterOverlay = document.querySelector('.letter-overlay');
 const letterBox = document.querySelector('.letter-box');
 const letterText = document.getElementById('letterText');
 
-const giftOverlay = document.querySelector('.gift-overlay');
-const giftImage = document.querySelector('.gift-image');
-
 let currentLine = 0;
 let finished = false;
 let notesInterval = null;
-let audioContextUnlocked = false;
 
-// FIX 1: Audio initialization and unlocking
-function initAudio() {
-  console.log('Initializing audio...');
-  
-  if (bgMusic) {
-    bgMusic.volume = 0.6;
-    bgMusic.preload = 'auto';
-    
-    // Debug events
-    bgMusic.addEventListener('canplay', () => {
-      console.log('Background music can play');
-    });
-    
-    bgMusic.addEventListener('error', (e) => {
-      console.error('Background music error:', bgMusic.error);
-    });
-  }
-  
-  if (confettiSound) {
-    confettiSound.volume = 0.7;
-    confettiSound.preload = 'auto';
-  }
-}
-
-// FIX 2: Unlock audio context for modern browsers
-async function unlockAudio() {
-  if (audioContextUnlocked) return true;
-  
-  try {
-    // Resume audio context if suspended
-    if (window.AudioContext || window.webkitAudioContext) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      const audioContext = new AudioContext();
-      
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-      
-      // Create and play a silent buffer to unlock audio
-      const buffer = audioContext.createBuffer(1, 1, 22050);
-      const source = audioContext.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioContext.destination);
-      source.start(0);
-      
-      console.log('Audio context unlocked');
-    }
-    
-    audioContextUnlocked = true;
-    return true;
-  } catch (error) {
-    console.log('Audio context unlock failed, continuing anyway:', error);
-    return false;
-  }
-}
-
-// FIX 3: Improved audio playback with better error handling
-async function playAudio(audioElement, soundName = 'audio') {
-  if (!audioElement) {
-    console.log(`${soundName} element not found`);
-    return false;
-  }
-
-  try {
-    // Unlock audio first
-    await unlockAudio();
-    
-    // Reset and set volume
-    audioElement.currentTime = 0;
-    
-    // Try to play
-    await audioElement.play();
-    console.log(`${soundName} playing successfully`);
-    return true;
-    
-  } catch (error) {
-    console.log(`${soundName} play failed:`, error);
-    
-    // If autoplay is blocked, we'll handle it gracefully
-    if (error.name === 'NotAllowedError') {
-      console.log('Audio blocked by browser policy - requires user interaction');
-    }
-    
-    return false;
-  }
-}
-
-// FIX 4: Gift box functionality - COMPLETELY REWRITTEN
-giftBox.addEventListener('click', async (e) => {
-  e.stopPropagation();
-  console.log('Gift box clicked');
-  
-  // Toggle open state
-  const isOpening = !giftBox.classList.contains('open');
-  
-  if (isOpening) {
-    // Open the gift
-    giftBox.classList.add('open');
-    
-    // Small delay to see animation before showing image
-    setTimeout(() => {
-      giftOverlay.classList.add('show');
-    }, 400);
-    
-    // Play confetti sound
-    await playAudio(confettiSound, 'confetti');
-    
-  } else {
-    // Close the gift
-    giftOverlay.classList.remove('show');
-    
-    // Wait for fade out before removing open class
-    setTimeout(() => {
-      giftBox.classList.remove('open');
-    }, 300);
-  }
-});
-
-// FIX 5: Close gift when clicking background
-giftOverlay.addEventListener('click', (e) => {
-  if (e.target === giftOverlay || e.target.classList.contains('gift-image')) {
-    giftOverlay.classList.remove('show');
-    giftBox.classList.remove('open');
-  }
-});
-
-// FIX 6: Close overlays with Escape key
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    if (giftOverlay.classList.contains('show')) {
-      giftOverlay.classList.remove('show');
-      giftBox.classList.remove('open');
-    }
-    if (letterOverlay.classList.contains('show')) {
-      hideLetterOverlay();
-    }
-  }
-});
-
-// Original text animation functions (keep these)
 function showLine(line, callback) {
   textElement.innerHTML = "";
   const letters = [...line.replace(/ /g, "\u00A0")];
@@ -204,7 +60,7 @@ function nextLine() {
   });
 }
 
-// Music notes spawning
+// ---------- notes spawning ----------
 function spawnNote() {
   const note = document.createElement("span");
   note.textContent = "♫";
@@ -215,12 +71,13 @@ function spawnNote() {
   setTimeout(() => note.remove(), 2200);
 }
 
-// FIX 7: Cake click with improved audio
-cake.addEventListener("click", async () => {
+cake.addEventListener("click", () => {
   if (!finished || !cake.classList.contains("clickable")) return;
 
-  // Play confetti sound
-  await playAudio(confettiSound, 'confetti');
+  if (confettiSound && typeof confettiSound.play === 'function') {
+    confettiSound.currentTime = 0;
+    confettiSound.play().catch(()=>{});
+  }
 
   const duration = 4000;
   const end = Date.now() + duration;
@@ -248,14 +105,17 @@ cake.addEventListener("click", async () => {
     musicBox.classList.add("show");
     cameraContainer.classList.add("show");
 
-    // Don't auto-start music - wait for user to click music box
-    musicBox.classList.add('off'); // Start with music off
-    
+    if (bgMusic && typeof bgMusic.play === 'function') {
+      bgMusic.play().catch(()=>{}); 
+      musicBox.classList.remove('off');
+    }
+
+    if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
     document.querySelector(".scene").classList.add("zoom-in");
   }, duration + 3000);
 });
 
-// Card messages (keep this)
+// ---------- CARD MESSAGE ----------
 cards.querySelectorAll(".card").forEach(card => {
   card.addEventListener("click", (ev) => {
     ev.stopPropagation();
@@ -267,45 +127,41 @@ cards.querySelectorAll(".card").forEach(card => {
   });
 });
 
+document.addEventListener('click', (e) => {
+  if (!letterOverlay.classList.contains('show')) return;
+  if (e.target.closest('.letter-box')) return;
+  hideLetterOverlay();
+});
+
+letterOverlay.addEventListener('click', (e) => {
+  if (!e.target.closest('.letter-box')) {
+    hideLetterOverlay();
+    return;
+  }
+  e.stopPropagation();
+});
+
 function hideLetterOverlay() {
   letterOverlay.classList.remove('show');
   setTimeout(() => { letterText.textContent = ""; }, 300);
 }
 
-letterOverlay.addEventListener('click', (e) => {
-  if (!e.target.closest('.letter-box')) {
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && letterOverlay.classList.contains('show')) {
     hideLetterOverlay();
   }
 });
 
-// FIX 8: Music box with better audio handling
-musicBox.addEventListener('click', async (ev) => {
+// ---------- MUSIC BOX ----------
+musicBox.addEventListener('click', (ev) => {
   ev.stopPropagation();
-  
-  if (!bgMusic) {
-    console.log('Background music element not found');
-    return;
-  }
+  if (!bgMusic) return;
 
   if (bgMusic.paused) {
-    // Try to play music
-    const success = await playAudio(bgMusic, 'background');
-    
-    if (success) {
-      musicBox.classList.remove('off');
-      if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
-    } else {
-      // Show visual feedback that audio needs interaction
-      musicBox.style.background = 'linear-gradient(145deg, #ff6b6b, #c44569)';
-      setTimeout(() => {
-        musicBox.style.background = 'linear-gradient(145deg, #e2c657, #d71616)';
-      }, 1000);
-      
-      // Show help message
-      console.log('Click the music box again to start audio');
-    }
+    bgMusic.play().catch(()=>{});
+    musicBox.classList.remove('off');
+    if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
   } else {
-    // Pause music
     bgMusic.pause();
     musicBox.classList.add('off');
     clearInterval(notesInterval);
@@ -313,7 +169,7 @@ musicBox.addEventListener('click', async (ev) => {
   }
 });
 
-// Age calculator (keep this)
+// ---------- AGE CALCULATOR ----------
 const birthDate = new Date('2005-11-06');
 const today = new Date();
 let age = today.getFullYear() - birthDate.getFullYear();
@@ -327,7 +183,7 @@ document.querySelectorAll(".card").forEach(card => {
   }
 });
 
-// Camera functionality (keep this)
+// ---------- CAMERA ----------
 const cameraBg = document.getElementById('cameraBg');
 const cameraWindow = document.getElementById('cameraWindow');
 const captureBtn = document.getElementById('captureBtn');
@@ -338,6 +194,7 @@ const thumbnailBar = document.getElementById('thumbnailBar');
 let stream;
 let capturedPhotos = [];
 
+// open camera
 document.querySelector('.camera').addEventListener('click', async () => {
   cameraBg.classList.add('show');
   cameraWindow.classList.add('show');
@@ -345,7 +202,7 @@ document.querySelector('.camera').addEventListener('click', async () => {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: true });
     cameraFeed.srcObject = stream;
-    cameraFeed.style.transform = "scaleX(-1)";
+    cameraFeed.style.transform = "scaleX(-1)"; // mirror camera
     await cameraFeed.play();
   } catch (err) {
     console.error("Camera access error:", err);
@@ -353,6 +210,7 @@ document.querySelector('.camera').addEventListener('click', async () => {
   }
 });
 
+// take picture (mirrored)
 captureBtn.addEventListener('click', () => {
   if (!stream) return;
 
@@ -360,6 +218,7 @@ captureBtn.addEventListener('click', () => {
   photoCanvas.width = cameraFeed.videoWidth;
   photoCanvas.height = cameraFeed.videoHeight;
 
+  // flip horizontally before drawing
   ctx.translate(photoCanvas.width, 0);
   ctx.scale(-1, 1);
   ctx.drawImage(cameraFeed, 0, 0, photoCanvas.width, photoCanvas.height);
@@ -368,7 +227,8 @@ captureBtn.addEventListener('click', () => {
   const photoSrc = photoCanvas.toDataURL('image/png');
   capturedPhotos.push(photoSrc);
 
-  thumbnailBar.innerHTML = '';
+  // ✅ Only show 1 thumbnail (latest)
+  thumbnailBar.innerHTML = ''; // clear old one
   const latestThumb = document.createElement('img');
   latestThumb.src = photoSrc;
   thumbnailBar.appendChild(latestThumb);
@@ -376,16 +236,15 @@ captureBtn.addEventListener('click', () => {
   latestThumb.addEventListener('click', () => openGallery());
 });
 
+// ✅ Gallery View (click thumbnail to open)
 function openGallery() {
   const galleryOverlay = document.createElement('div');
   galleryOverlay.classList.add('gift-overlay', 'show');
-  galleryOverlay.style.cssText = `
-    backdrop-filter: blur(8px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-  `;
+  galleryOverlay.style.backdropFilter = 'blur(8px)';
+  galleryOverlay.style.display = 'flex';
+  galleryOverlay.style.justifyContent = 'center';
+  galleryOverlay.style.alignItems = 'center';
+  galleryOverlay.style.zIndex = '2000';
 
   const gallery = document.createElement('div');
   gallery.style.cssText = `
@@ -433,6 +292,7 @@ function openGallery() {
   });
 }
 
+// close camera when clicking background
 cameraBg.addEventListener('click', () => {
   cameraBg.classList.remove('show');
   cameraWindow.classList.remove('show');
@@ -442,13 +302,5 @@ cameraBg.addEventListener('click', () => {
   }
 });
 
-// Initialize everything when page loads
-document.addEventListener('DOMContentLoaded', () => {
-  initAudio();
-  nextLine();
-});
 
-// Additional audio initialization on first user interaction
-document.addEventListener('click', () => {
-  initAudio();
-}, { once: true });
+nextLine();
