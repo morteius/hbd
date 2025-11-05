@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>hihi</title>
+  <title>Happy Birthday!</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -62,11 +62,8 @@
       <div class="photo-grid"></div>
     </div>
 
-    <video id="cameraFeed" autoplay playsinline style="display:none;"></video>
-    <canvas id="photoCanvas" style="display:none;"></canvas>
-
-  
-    <audio id="bgMusic" loop>
+    <!-- Audio Section - SIMPLIFIED -->
+    <audio id="bgMusic" loop preload="metadata">
         <source src="sfx/hbd.mp3" type="audio/mpeg">
     </audio>
 
@@ -79,6 +76,7 @@
         <p id="letterText"></p>
       </div>
     </div>
+    
     <div class="gift-overlay">
       <img src="images/pic.png" class="gift-image">
     </div>
