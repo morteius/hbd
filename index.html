@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>hihi</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="scene">
+    <div class="light"></div>
+
+    <div class="cake">
+      <div class="plate"></div>
+      <div class="layer layer-bottom"><div class="icing"></div></div>
+      <div class="layer layer-middle"><div class="icing"></div></div>
+      <div class="layer layer-top"><div class="icing"></div></div>
+      <div class="candle"><div class="flame"></div></div>
+    </div>
+
+    <div class="cards">
+      <div class="card card1" data-message="Wishing you a magical day! Wishing you a magical day! Wishing you a magical day! Wishing you a magical day! Wishing you a magical day! Wishing you a magical day! Wishing you a magical day! Wishing you a magical day! "></div>
+      <div class="card card2" data-message="Hope all your dreams come true!"></div>
+      <div class="card card3" data-message="Happy Birthday, Jo!&#10;&#10;&nbsp;&nbsp;&nbsp;&nbsp;You're {age} now so you're my ate na haha. Anyways, I wish you all the best and always stay kind and true to yourself. You deserve more than you thought. Happiest birthday!"></div>
+    </div>
+
+    <div class="gift-box">
+      <div class="gift-lid"></div>
+      <div class="gift-body"></div>
+      <div class="gift-ribbon-vertical"></div>
+      <div class="gift-ribbon-horizontal"></div>
+    </div>
+
+    <div class="text-container">
+      <h1 id="message"></h1>
+    </div>
+  
+    <div class="music-box" id="musicBox">
+       <div class="speaker"></div>
+       <div class="notes"></div>
+    </div>
+
+    <div class="camera-container">
+      <img src="images/polaroid.png" class="camera">
+    </div>
+
+    <div class="camera-bg" id="cameraBg"></div>
+
+    <div id="cameraWindow" class="camera-window">
+      <div class="camera-frame">
+        <video id="cameraFeed" autoplay></video>
+        <img src="images/cam.png" class="camera-overlay" alt="Camera overlay">
+      </div>
+    
+      <div class="camera-controls">
+        <div id="thumbnailBar" class="thumbnail-bar"></div>
+        <button id="captureBtn"><img src="images/button.png"></button>
+      </div>
+
+      <div id="photoGallery" class="photo-gallery">
+        <div class="photo-grid"></div>
+      </div>
+
+    </div>
+
+    <video id="cameraFeed" autoplay playsinline style="display:none;"></video>
+    <canvas id="photoCanvas" style="display:none;"></canvas>
+
+    <audio id="bgMusic" loop autoplay>
+        <source src="sfx/hbd.wav" type="audio/mpeg">
+    </audio>
+
+    <audio id="confettiSound">
+        <source src="sfx/confetti.mp3" type="audio/mpeg">
+    </audio>
+
+    <div class="letter-overlay">
+      <div class="letter-box">
+        <p id="letterText"></p>
+      </div>
+    </div>
+    <div class="gift-overlay">
+      <img src="images/pic.png" class="gift-image">
+    </div>
+
+
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
