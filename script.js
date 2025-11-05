@@ -23,119 +23,39 @@ let currentLine = 0;
 let finished = false;
 let notesInterval = null;
 let isMusicPlaying = false;
-let audioInitialized = false;
 
-// Fix: Comprehensive audio initialization
+// Fix: Initialize audio with user interaction
 function initAudio() {
-  if (audioInitialized) return;
-  
-  console.log('Initializing audio...');
-  
   if (bgMusic) {
-    bgMusic.volume = 0.6;
+    bgMusic.volume = 0.7;
     bgMusic.preload = "auto";
-    bgMusic.load(); // Force preload
-    
-    // Add event listeners for debugging
-    bgMusic.addEventListener('canplaythrough', () => {
-      console.log('Background music can play through');
-    });
-    
-    bgMusic.addEventListener('error', (e) => {
-      console.error('Background music error:', e);
-      console.error('Audio error details:', bgMusic.error);
-    });
-    
-    bgMusic.addEventListener('loadstart', () => {
-      console.log('Background music loading started');
-    });
   }
-
   if (confettiSound) {
-    confettiSound.volume = 0.7;
+    confettiSound.volume = 0.8;
     confettiSound.preload = "auto";
-    confettiSound.load();
   }
-  
-  audioInitialized = true;
-}
-
-// Fix: Audio context resume for modern browsers
-async function unlockAudio() {
-  try {
-    // Create and resume audio context if needed
-    if (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined') {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      const audioContext = new AudioContextClass();
-      
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-      
-      // Create a silent source to unlock audio
-      const buffer = audioContext.createBuffer(1, 1, 22050);
-      const source = audioContext.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioContext.destination);
-      source.start();
-    }
-    
-    return true;
-  } catch (error) {
-    console.log('Audio context unlock failed:', error);
-    return false;
-  }
-}
-
-// Fix: Improved audio playback with user gesture
-async function playAudio(audioElement, soundName = 'audio') {
-  if (!audioElement) {
-    console.log(`${soundName} element not found`);
-    return false;
-  }
-
-  try {
-    // Ensure audio is unlocked
-    await unlockAudio();
-    
-    // Reset and play
-    audioElement.currentTime = 0;
-    audioElement.volume = soundName === 'background' ? 0.6 : 0.7;
-    
-    const playPromise = audioElement.play();
-    
-    if (playPromise !== undefined) {
-      await playPromise;
-      console.log(`${soundName} started successfully`);
-      return true;
-    }
-  } catch (error) {
-    console.log(`${soundName} play failed:`, error);
-    
-    // Fallback: Try with user gesture
-    if (error.name === 'NotAllowedError') {
-      console.log('Audio blocked by browser. Waiting for user interaction...');
-      // We'll rely on the music box click for background music
-    }
-  }
-  
-  return false;
 }
 
 // Fix: Improved gift box functionality
-giftBox.addEventListener('click', async (e) => {
+giftBox.addEventListener('click', (e) => {
   e.stopPropagation();
   
+  // Toggle the open state
   const isOpening = !giftBox.classList.contains('open');
   giftBox.classList.toggle('open');
   
   if (isOpening) {
+    // Show the overlay and image
     giftOverlay.classList.add('show');
     giftImage.style.display = 'block';
     
     // Play confetti sound when opening gift
-    await playAudio(confettiSound, 'confetti');
+    if (confettiSound) {
+      confettiSound.currentTime = 0;
+      confettiSound.play().catch(e => console.log('Confetti sound error:', e));
+    }
   } else {
+    // Close the gift
     giftOverlay.classList.remove('show');
     giftImage.style.display = 'none';
   }
@@ -204,7 +124,7 @@ function nextLine() {
   });
 }
 
-// Fix: Music notes spawning
+// Fix: Improved audio handling with user interaction
 function spawnNote() {
   const note = document.createElement("span");
   note.textContent = "♫";
@@ -215,12 +135,18 @@ function spawnNote() {
   setTimeout(() => note.remove(), 2200);
 }
 
-// Fix: Improved cake click with better audio handling
-cake.addEventListener("click", async () => {
+cake.addEventListener("click", () => {
   if (!finished || !cake.classList.contains("clickable")) return;
 
-  // Play confetti sound
-  await playAudio(confettiSound, 'confetti');
+  // Fix: Improved audio playback with error handling
+  const playConfettiSound = () => {
+    if (confettiSound) {
+      confettiSound.currentTime = 0;
+      confettiSound.play().catch(e => console.log('Confetti sound play failed:', e));
+    }
+  };
+
+  playConfettiSound();
 
   const duration = 4000;
   const end = Date.now() + duration;
@@ -248,8 +174,23 @@ cake.addEventListener("click", async () => {
     musicBox.classList.add("show");
     cameraContainer.classList.add("show");
 
-    // Don't auto-start background music - wait for user click
-    musicBox.classList.add('off'); // Start with music off
+    // Fix: Start background music with user interaction
+    const startBackgroundMusic = () => {
+      if (bgMusic && !isMusicPlaying) {
+        bgMusic.currentTime = 0;
+        bgMusic.play().then(() => {
+          isMusicPlaying = true;
+          musicBox.classList.remove('off');
+          if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
+        }).catch(e => {
+          console.log('Background music play failed:', e);
+          // Show visual indicator that music failed
+          musicBox.classList.add('off');
+        });
+      }
+    };
+
+    startBackgroundMusic();
     document.querySelector(".scene").classList.add("zoom-in");
   }, duration + 3000);
 });
@@ -277,32 +218,17 @@ letterOverlay.addEventListener('click', (e) => {
   }
 });
 
-// Fix: Music box click - main audio starter
-musicBox.addEventListener('click', async (ev) => {
+// ---------- MUSIC BOX ----------
+musicBox.addEventListener('click', (ev) => {
   ev.stopPropagation();
-  
-  if (!bgMusic) {
-    console.log('Background music element not found');
-    return;
-  }
+  if (!bgMusic) return;
 
   if (bgMusic.paused) {
-    // Try to play music
-    const success = await playAudio(bgMusic, 'background');
-    
-    if (success) {
-      musicBox.classList.remove('off');
-      isMusicPlaying = true;
-      if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
-    } else {
-      // Show visual feedback that audio is blocked
-      musicBox.style.background = 'linear-gradient(145deg, #ff6b6b, #c44569)';
-      setTimeout(() => {
-        musicBox.style.background = 'linear-gradient(145deg, #e2c657, #d71616)';
-      }, 1000);
-    }
+    bgMusic.play().catch(e => console.log('Music play failed:', e));
+    musicBox.classList.remove('off');
+    isMusicPlaying = true;
+    if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
   } else {
-    // Pause music
     bgMusic.pause();
     musicBox.classList.add('off');
     isMusicPlaying = false;
@@ -443,18 +369,9 @@ cameraBg.addEventListener('click', () => {
   }
 });
 
-// Initialize audio when page loads and on user interaction
+// Initialize audio when page loads
 document.addEventListener('DOMContentLoaded', () => {
   initAudio();
 });
-
-// Initialize audio on any user interaction
-document.addEventListener('click', () => {
-  initAudio();
-}, { once: true });
-
-document.addEventListener('touchstart', () => {
-  initAudio();
-}, { once: true });
 
 nextLine();
