@@ -16,9 +16,103 @@ const letterOverlay = document.querySelector('.letter-overlay');
 const letterBox = document.querySelector('.letter-box');
 const letterText = document.getElementById('letterText');
 
+const giftOverlay = document.querySelector('.gift-overlay');
+const giftImage = document.querySelector('.gift-image');
+
 let currentLine = 0;
 let finished = false;
 let notesInterval = null;
+let audioEnabled = false;
+
+// GITHUB PAGES AUDIO FIX
+function enableAudio() {
+  if (audioEnabled) return true;
+  
+  // This creates a user interaction context for audio
+  const silentAudio = new Audio();
+  silentAudio.src = 'data:audio/wav;base64,UklGRnoAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoAAAC';
+  silentAudio.play().then(() => {
+    audioEnabled = true;
+    console.log('Audio enabled');
+  }).catch(e => {
+    console.log('Audio context setup failed:', e);
+  });
+  
+  return audioEnabled;
+}
+
+function playSound(sound, volume = 0.7) {
+  if (!sound) {
+    console.log('Sound element not found');
+    return false;
+  }
+  
+  // Enable audio on first user interaction
+  if (!audioEnabled) {
+    enableAudio();
+  }
+  
+  try {
+    sound.volume = volume;
+    sound.currentTime = 0;
+    
+    const playPromise = sound.play();
+    
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        console.log('Sound playing successfully');
+      }).catch(error => {
+        console.log('Sound play failed:', error);
+        // If autoplay is blocked, show a message
+        if (error.name === 'NotAllowedError') {
+          console.log('Audio blocked by browser. User needs to interact first.');
+        }
+      });
+    }
+    return true;
+  } catch (error) {
+    console.log('Sound play error:', error);
+    return false;
+  }
+}
+
+// Gift box functionality
+giftBox.addEventListener('click', (e) => {
+  e.stopPropagation();
+  
+  const isOpening = !giftBox.classList.contains('open');
+  giftBox.classList.toggle('open');
+  
+  if (isOpening) {
+    giftOverlay.classList.add('show');
+    giftImage.style.display = 'block';
+    playSound(confettiSound, 0.8);
+  } else {
+    giftOverlay.classList.remove('show');
+    giftImage.style.display = 'none';
+  }
+});
+
+giftOverlay.addEventListener('click', (e) => {
+  if (e.target === giftOverlay) {
+    giftOverlay.classList.remove('show');
+    giftBox.classList.remove('open');
+    giftImage.style.display = 'none';
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (giftOverlay.classList.contains('show')) {
+      giftOverlay.classList.remove('show');
+      giftBox.classList.remove('open');
+      giftImage.style.display = 'none';
+    }
+    if (letterOverlay.classList.contains('show')) {
+      hideLetterOverlay();
+    }
+  }
+});
 
 function showLine(line, callback) {
   textElement.innerHTML = "";
@@ -60,7 +154,6 @@ function nextLine() {
   });
 }
 
-// ---------- notes spawning ----------
 function spawnNote() {
   const note = document.createElement("span");
   note.textContent = "♫";
@@ -74,10 +167,8 @@ function spawnNote() {
 cake.addEventListener("click", () => {
   if (!finished || !cake.classList.contains("clickable")) return;
 
-  if (confettiSound && typeof confettiSound.play === 'function') {
-    confettiSound.currentTime = 0;
-    confettiSound.play().catch(()=>{});
-  }
+  // Play confetti sound
+  playSound(confettiSound, 0.8);
 
   const duration = 4000;
   const end = Date.now() + duration;
@@ -105,17 +196,15 @@ cake.addEventListener("click", () => {
     musicBox.classList.add("show");
     cameraContainer.classList.add("show");
 
-    if (bgMusic && typeof bgMusic.play === 'function') {
-      bgMusic.play().catch(()=>{}); 
-      musicBox.classList.remove('off');
-    }
-
+    // Don't auto-play background music on GitHub Pages
+    // User will need to click the music box
+    musicBox.classList.add('off');
+    
     if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
     document.querySelector(".scene").classList.add("zoom-in");
   }, duration + 3000);
 });
 
-// ---------- CARD MESSAGE ----------
 cards.querySelectorAll(".card").forEach(card => {
   card.addEventListener("click", (ev) => {
     ev.stopPropagation();
@@ -127,40 +216,38 @@ cards.querySelectorAll(".card").forEach(card => {
   });
 });
 
-document.addEventListener('click', (e) => {
-  if (!letterOverlay.classList.contains('show')) return;
-  if (e.target.closest('.letter-box')) return;
-  hideLetterOverlay();
-});
-
-letterOverlay.addEventListener('click', (e) => {
-  if (!e.target.closest('.letter-box')) {
-    hideLetterOverlay();
-    return;
-  }
-  e.stopPropagation();
-});
-
 function hideLetterOverlay() {
   letterOverlay.classList.remove('show');
   setTimeout(() => { letterText.textContent = ""; }, 300);
 }
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && letterOverlay.classList.contains('show')) {
+letterOverlay.addEventListener('click', (e) => {
+  if (!e.target.closest('.letter-box')) {
     hideLetterOverlay();
   }
 });
 
-// ---------- MUSIC BOX ----------
+// Music box - user must click this to start music on GitHub Pages
 musicBox.addEventListener('click', (ev) => {
   ev.stopPropagation();
+  
+  // Enable audio on first click
+  enableAudio();
+  
   if (!bgMusic) return;
 
   if (bgMusic.paused) {
-    bgMusic.play().catch(()=>{});
-    musicBox.classList.remove('off');
-    if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
+    const success = playSound(bgMusic, 0.6);
+    if (success) {
+      musicBox.classList.remove('off');
+      if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
+    } else {
+      // Show visual feedback that audio needs interaction
+      musicBox.style.background = 'linear-gradient(145deg, #ff6b6b, #c44569)';
+      setTimeout(() => {
+        musicBox.style.background = 'linear-gradient(145deg, #e2c657, #d71616)';
+      }, 1000);
+    }
   } else {
     bgMusic.pause();
     musicBox.classList.add('off');
@@ -169,7 +256,7 @@ musicBox.addEventListener('click', (ev) => {
   }
 });
 
-// ---------- AGE CALCULATOR ----------
+// Age calculator
 const birthDate = new Date('2005-11-06');
 const today = new Date();
 let age = today.getFullYear() - birthDate.getFullYear();
@@ -183,7 +270,7 @@ document.querySelectorAll(".card").forEach(card => {
   }
 });
 
-// ---------- CAMERA ----------
+// Camera functionality
 const cameraBg = document.getElementById('cameraBg');
 const cameraWindow = document.getElementById('cameraWindow');
 const captureBtn = document.getElementById('captureBtn');
@@ -194,7 +281,6 @@ const thumbnailBar = document.getElementById('thumbnailBar');
 let stream;
 let capturedPhotos = [];
 
-// open camera
 document.querySelector('.camera').addEventListener('click', async () => {
   cameraBg.classList.add('show');
   cameraWindow.classList.add('show');
@@ -202,7 +288,7 @@ document.querySelector('.camera').addEventListener('click', async () => {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: true });
     cameraFeed.srcObject = stream;
-    cameraFeed.style.transform = "scaleX(-1)"; // mirror camera
+    cameraFeed.style.transform = "scaleX(-1)";
     await cameraFeed.play();
   } catch (err) {
     console.error("Camera access error:", err);
@@ -210,7 +296,6 @@ document.querySelector('.camera').addEventListener('click', async () => {
   }
 });
 
-// take picture (mirrored)
 captureBtn.addEventListener('click', () => {
   if (!stream) return;
 
@@ -218,7 +303,6 @@ captureBtn.addEventListener('click', () => {
   photoCanvas.width = cameraFeed.videoWidth;
   photoCanvas.height = cameraFeed.videoHeight;
 
-  // flip horizontally before drawing
   ctx.translate(photoCanvas.width, 0);
   ctx.scale(-1, 1);
   ctx.drawImage(cameraFeed, 0, 0, photoCanvas.width, photoCanvas.height);
@@ -227,8 +311,7 @@ captureBtn.addEventListener('click', () => {
   const photoSrc = photoCanvas.toDataURL('image/png');
   capturedPhotos.push(photoSrc);
 
-  // ✅ Only show 1 thumbnail (latest)
-  thumbnailBar.innerHTML = ''; // clear old one
+  thumbnailBar.innerHTML = '';
   const latestThumb = document.createElement('img');
   latestThumb.src = photoSrc;
   thumbnailBar.appendChild(latestThumb);
@@ -236,15 +319,16 @@ captureBtn.addEventListener('click', () => {
   latestThumb.addEventListener('click', () => openGallery());
 });
 
-// ✅ Gallery View (click thumbnail to open)
 function openGallery() {
   const galleryOverlay = document.createElement('div');
   galleryOverlay.classList.add('gift-overlay', 'show');
-  galleryOverlay.style.backdropFilter = 'blur(8px)';
-  galleryOverlay.style.display = 'flex';
-  galleryOverlay.style.justifyContent = 'center';
-  galleryOverlay.style.alignItems = 'center';
-  galleryOverlay.style.zIndex = '2000';
+  galleryOverlay.style.cssText = `
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+  `;
 
   const gallery = document.createElement('div');
   gallery.style.cssText = `
@@ -292,7 +376,6 @@ function openGallery() {
   });
 }
 
-// close camera when clicking background
 cameraBg.addEventListener('click', () => {
   cameraBg.classList.remove('show');
   cameraWindow.classList.remove('show');
@@ -302,5 +385,9 @@ cameraBg.addEventListener('click', () => {
   }
 });
 
+// Enable audio on any user interaction with the page
+document.addEventListener('click', () => {
+  enableAudio();
+}, { once: true });
 
 nextLine();
