@@ -16,71 +16,9 @@ const letterOverlay = document.querySelector('.letter-overlay');
 const letterBox = document.querySelector('.letter-box');
 const letterText = document.getElementById('letterText');
 
-const giftOverlay = document.querySelector('.gift-overlay');
-const giftImage = document.querySelector('.gift-image');
-
 let currentLine = 0;
 let finished = false;
 let notesInterval = null;
-
-// SIMPLE AUDIO FIX
-function playSound(sound) {
-  if (!sound) return false;
-  
-  // Reset and play
-  sound.currentTime = 0;
-  sound.volume = sound === bgMusic ? 0.6 : 0.7;
-  
-  const promise = sound.play();
-  
-  if (promise !== undefined) {
-    promise.catch(error => {
-      console.log('Audio play failed, will retry on user interaction:', error);
-      // Mark that we need user interaction
-      document.body.classList.add('needs-audio-interaction');
-    });
-  }
-  
-  return true;
-}
-
-// Gift box functionality
-giftBox.addEventListener('click', (e) => {
-  e.stopPropagation();
-  
-  const isOpening = !giftBox.classList.contains('open');
-  giftBox.classList.toggle('open');
-  
-  if (isOpening) {
-    giftOverlay.classList.add('show');
-    giftImage.style.display = 'block';
-    playSound(confettiSound);
-  } else {
-    giftOverlay.classList.remove('show');
-    giftImage.style.display = 'none';
-  }
-});
-
-giftOverlay.addEventListener('click', (e) => {
-  if (e.target === giftOverlay) {
-    giftOverlay.classList.remove('show');
-    giftBox.classList.remove('open');
-    giftImage.style.display = 'none';
-  }
-});
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    if (giftOverlay.classList.contains('show')) {
-      giftOverlay.classList.remove('show');
-      giftBox.classList.remove('open');
-      giftImage.style.display = 'none';
-    }
-    if (letterOverlay.classList.contains('show')) {
-      hideLetterOverlay();
-    }
-  }
-});
 
 function showLine(line, callback) {
   textElement.innerHTML = "";
@@ -122,6 +60,7 @@ function nextLine() {
   });
 }
 
+// ---------- notes spawning ----------
 function spawnNote() {
   const note = document.createElement("span");
   note.textContent = "♫";
@@ -135,8 +74,10 @@ function spawnNote() {
 cake.addEventListener("click", () => {
   if (!finished || !cake.classList.contains("clickable")) return;
 
-  // Play confetti sound
-  playSound(confettiSound);
+  if (confettiSound && typeof confettiSound.play === 'function') {
+    confettiSound.currentTime = 0;
+    confettiSound.play().catch(()=>{});
+  }
 
   const duration = 4000;
   const end = Date.now() + duration;
@@ -164,15 +105,17 @@ cake.addEventListener("click", () => {
     musicBox.classList.add("show");
     cameraContainer.classList.add("show");
 
-    // Try to play background music
-    playSound(bgMusic);
-    musicBox.classList.remove('off');
-    
+    if (bgMusic && typeof bgMusic.play === 'function') {
+      bgMusic.play().catch(()=>{}); 
+      musicBox.classList.remove('off');
+    }
+
     if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
     document.querySelector(".scene").classList.add("zoom-in");
   }, duration + 3000);
 });
 
+// ---------- CARD MESSAGE ----------
 cards.querySelectorAll(".card").forEach(card => {
   card.addEventListener("click", (ev) => {
     ev.stopPropagation();
@@ -184,28 +127,40 @@ cards.querySelectorAll(".card").forEach(card => {
   });
 });
 
+document.addEventListener('click', (e) => {
+  if (!letterOverlay.classList.contains('show')) return;
+  if (e.target.closest('.letter-box')) return;
+  hideLetterOverlay();
+});
+
+letterOverlay.addEventListener('click', (e) => {
+  if (!e.target.closest('.letter-box')) {
+    hideLetterOverlay();
+    return;
+  }
+  e.stopPropagation();
+});
+
 function hideLetterOverlay() {
   letterOverlay.classList.remove('show');
   setTimeout(() => { letterText.textContent = ""; }, 300);
 }
 
-letterOverlay.addEventListener('click', (e) => {
-  if (!e.target.closest('.letter-box')) {
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && letterOverlay.classList.contains('show')) {
     hideLetterOverlay();
   }
 });
 
-// Music box with retry logic
+// ---------- MUSIC BOX ----------
 musicBox.addEventListener('click', (ev) => {
   ev.stopPropagation();
   if (!bgMusic) return;
 
   if (bgMusic.paused) {
-    const success = playSound(bgMusic);
-    if (success) {
-      musicBox.classList.remove('off');
-      if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
-    }
+    bgMusic.play().catch(()=>{});
+    musicBox.classList.remove('off');
+    if (!notesInterval) notesInterval = setInterval(spawnNote, 1200);
   } else {
     bgMusic.pause();
     musicBox.classList.add('off');
@@ -214,7 +169,7 @@ musicBox.addEventListener('click', (ev) => {
   }
 });
 
-// Age calculator
+// ---------- AGE CALCULATOR ----------
 const birthDate = new Date('2005-11-06');
 const today = new Date();
 let age = today.getFullYear() - birthDate.getFullYear();
@@ -228,7 +183,7 @@ document.querySelectorAll(".card").forEach(card => {
   }
 });
 
-// Camera functionality
+// ---------- CAMERA ----------
 const cameraBg = document.getElementById('cameraBg');
 const cameraWindow = document.getElementById('cameraWindow');
 const captureBtn = document.getElementById('captureBtn');
@@ -239,6 +194,7 @@ const thumbnailBar = document.getElementById('thumbnailBar');
 let stream;
 let capturedPhotos = [];
 
+// open camera
 document.querySelector('.camera').addEventListener('click', async () => {
   cameraBg.classList.add('show');
   cameraWindow.classList.add('show');
@@ -246,7 +202,7 @@ document.querySelector('.camera').addEventListener('click', async () => {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: true });
     cameraFeed.srcObject = stream;
-    cameraFeed.style.transform = "scaleX(-1)";
+    cameraFeed.style.transform = "scaleX(-1)"; // mirror camera
     await cameraFeed.play();
   } catch (err) {
     console.error("Camera access error:", err);
@@ -254,6 +210,7 @@ document.querySelector('.camera').addEventListener('click', async () => {
   }
 });
 
+// take picture (mirrored)
 captureBtn.addEventListener('click', () => {
   if (!stream) return;
 
@@ -261,6 +218,7 @@ captureBtn.addEventListener('click', () => {
   photoCanvas.width = cameraFeed.videoWidth;
   photoCanvas.height = cameraFeed.videoHeight;
 
+  // flip horizontally before drawing
   ctx.translate(photoCanvas.width, 0);
   ctx.scale(-1, 1);
   ctx.drawImage(cameraFeed, 0, 0, photoCanvas.width, photoCanvas.height);
@@ -269,7 +227,8 @@ captureBtn.addEventListener('click', () => {
   const photoSrc = photoCanvas.toDataURL('image/png');
   capturedPhotos.push(photoSrc);
 
-  thumbnailBar.innerHTML = '';
+  // ✅ Only show 1 thumbnail (latest)
+  thumbnailBar.innerHTML = ''; // clear old one
   const latestThumb = document.createElement('img');
   latestThumb.src = photoSrc;
   thumbnailBar.appendChild(latestThumb);
@@ -277,16 +236,15 @@ captureBtn.addEventListener('click', () => {
   latestThumb.addEventListener('click', () => openGallery());
 });
 
+// ✅ Gallery View (click thumbnail to open)
 function openGallery() {
   const galleryOverlay = document.createElement('div');
   galleryOverlay.classList.add('gift-overlay', 'show');
-  galleryOverlay.style.cssText = `
-    backdrop-filter: blur(8px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-  `;
+  galleryOverlay.style.backdropFilter = 'blur(8px)';
+  galleryOverlay.style.display = 'flex';
+  galleryOverlay.style.justifyContent = 'center';
+  galleryOverlay.style.alignItems = 'center';
+  galleryOverlay.style.zIndex = '2000';
 
   const gallery = document.createElement('div');
   gallery.style.cssText = `
@@ -334,6 +292,7 @@ function openGallery() {
   });
 }
 
+// close camera when clicking background
 cameraBg.addEventListener('click', () => {
   cameraBg.classList.remove('show');
   cameraWindow.classList.remove('show');
@@ -343,5 +302,5 @@ cameraBg.addEventListener('click', () => {
   }
 });
 
-// Initialize
+
 nextLine();
